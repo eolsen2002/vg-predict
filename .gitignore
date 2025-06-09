@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# VSCode / IDE configs (optional)
+.vscode/
+.idea/
+
+# macOS / Windows system files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Local data files you don’t want to sync
+*.bak
+*.tmp
+
+# Ignore secret keys or environment configs (if used later)
+.env
+*.key
