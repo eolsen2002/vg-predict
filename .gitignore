@@ -2,3 +2,17 @@
 # Ignore Excel files in the data directory
 
 /data/*.xlsx
+
+# Ignore Python virtual environment
+venv/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore other common Python temp files
+*.pyo
+*.pyd
+
+# Ignore config cache if any
+*.egg-info/
