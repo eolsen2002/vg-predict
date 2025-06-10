@@ -1,24 +1,16 @@
-"""
-a script to detect USFR's low points after its monthly peak, so you can better time re-entry after selling near the top.
+# scripts/usfr_post_peak_lows.py
+# Description: Detects USFR's lowest price within 1–3 trading days after its monthly peak to identify ideal re-entry points.
 
-This script will:
-
-Identify the peak day of USFR each month (as before).
-
-Look at the trading days after that peak (e.g., next 5–6 trading days).
-
-Find the lowest USFR price in that post-peak window.
-
-Save that low date and price for each month.
-"""
 import pandas as pd
+from datetime import datetime
 
 # Load the ETF price data
 df = pd.read_csv("data/etf_prices_2023_2025.csv", index_col=0, parse_dates=True)
 df.index = pd.to_datetime(df.index, utc=True).tz_convert(None)
 
 usfr = 'USFR'
-months = pd.date_range(start="2023-01-01", end="2025-05-31", freq='MS')
+latest_date = df.index.max()
+months = pd.date_range(start="2023-01-01", end=latest_date, freq='MS')
 
 results = []
 
@@ -29,29 +21,31 @@ for month_start in months:
     if df_month.empty or df_month[usfr].isnull().all():
         continue
 
-    # Identify the peak day for USFR between the 18th and 23rd
-    df_mid = df_month[(df_month.index.day >= 18) & (df_month.index.day <= 23)]
+    # Identify the peak day for USFR between the 21st and 26th
+    df_mid = df_month[(df_month.index.day >= 21) & (df_month.index.day <= 26)]
     if df_mid.empty:
         continue
 
-    #usfr_peak_day = df_mid[usfr].idxmax()
     max_price = df_mid[usfr].max()
     peak_candidates = df_mid[df_mid[usfr] == max_price]
     usfr_peak_day = peak_candidates.index.max()
     usfr_peak_price = max_price
 
-    # Post-peak: next 5 calendar days
-    post_peak = df[(df.index > usfr_peak_day) & (df.index <= usfr_peak_day + pd.Timedelta(days=6))]
-    if post_peak.empty:
+    # Find the next 3 **trading** days after the peak
+    post_peak = df[df.index > usfr_peak_day]
+    post_peak = post_peak[post_peak[usfr].notna()]
+    post_peak_trading_days = post_peak.head(3)  # First 3 trading days only
+
+    if post_peak_trading_days.empty:
         continue
 
-    usfr_low_day = post_peak[usfr].idxmin()
-    usfr_low_price = post_peak[usfr].min()
+    usfr_low_price = post_peak_trading_days[usfr].min()
+    usfr_low_day = post_peak_trading_days[post_peak_trading_days[usfr] == usfr_low_price].index[0]
 
     drop_pct = (usfr_low_price - usfr_peak_price) / usfr_peak_price * 100
 
-    # Sanity check: Only include realistic drop percentages (e.g., > -2%)
-    if usfr_peak_price > 0 and usfr_low_price > 0 and drop_pct > -2:
+    # Keep realistic drops only
+    if usfr_peak_price > 0 and usfr_low_price > 0 and drop_pct > -5:
         results.append({
             "Month": month_start.strftime("%Y-%m"),
             "USFR_Peak_Date": usfr_peak_day.strftime("%Y-%m-%d"),
@@ -59,14 +53,9 @@ for month_start in months:
             "USFR_Low_Date": usfr_low_day.strftime("%Y-%m-%d"),
             "USFR_Low": usfr_low_price,
             "Drop_%": round(drop_pct, 3)
-         })
-
+        })
 
 summary_df = pd.DataFrame(results)
-
-# Filter to keep only rows where Drop_% is between -5% and +5%
-summary_df = summary_df[(summary_df['Drop_%'] > -5) & (summary_df['Drop_%'] < 5)]
-
 summary_df.to_csv("signals/usfr_post_peak_lows.csv", index=False)
 
 print("📉 USFR post-peak low analysis complete. Saved to signals/usfr_post_peak_lows.csv.")

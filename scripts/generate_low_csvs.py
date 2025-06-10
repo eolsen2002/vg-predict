@@ -4,7 +4,7 @@ Purpose:
 Generate post-peak low CSVs for 6 Treasury ETFs using ETF-specific timing rules.
 
 USFR:     peak = day 18–25, low = next 1–6 calendar days
-Others:   peak = last trading day of month, low = next 1–3 trading days
+Others:   peak = last trading day of month or prior if weekend, low = next 1–3 trading days
 
 Input:
 - data/etf_prices_2023_2025.csv
@@ -44,11 +44,22 @@ def find_post_peak_lows(etf_name: str, df: pd.DataFrame) -> pd.DataFrame:
             lookahead_end = peak_date + timedelta(days=6)
             low_window = etf_df.loc[peak_date + timedelta(days=1):lookahead_end]
 
-        # === Others: peak = last trading day ===
+        # === Others: last trading day or prior if weekend ===
         else:
-            peak_date = group[etf_name].idxmax()
-            peak_value = group[etf_name].max()
-            # Look for low in next 3 **trading days** (not calendar)
+            last_trading_days = group.tail(3)
+            if last_trading_days.empty:
+                continue
+
+            # Default to last day as peak
+            peak_date = last_trading_days.index[-1]
+            peak_value = last_trading_days[etf_name].iloc[-1]
+
+            if len(last_trading_days) >= 2:
+                second_last_price = last_trading_days[etf_name].iloc[-2]
+                if peak_value < second_last_price:
+                    peak_date = last_trading_days.index[-2]
+                    peak_value = second_last_price
+
             try:
                 peak_idx = etf_df.index.get_loc(peak_date)
                 low_window = etf_df.iloc[peak_idx + 1 : peak_idx + 4]
@@ -61,17 +72,13 @@ def find_post_peak_lows(etf_name: str, df: pd.DataFrame) -> pd.DataFrame:
         low_date = low_window[etf_name].idxmin()
         low_value = low_window[etf_name].min()
 
-        # Check for multi-day low occurrence
         multi_low_dates = low_window[low_window[etf_name] == low_value].index
         is_multi_day_low = len(multi_low_dates) > 1
 
-        drop_pct = round(((low_value - peak_value) / peak_value) * 100, 3)        
-        
+        drop_pct = round(((low_value - peak_value) / peak_value) * 100, 3)
         days_between = (low_date - peak_date).days
-
         was_low_in_next_month = low_date.month != peak_date.month or low_date.year != peak_date.year
 
-        # Context: 10-day high before the peak, and 10-day low after the low
         ten_day_window_before_peak = etf_df.loc[peak_date - timedelta(days=10):peak_date - timedelta(days=1)]
         high_before_peak = ten_day_window_before_peak[etf_name].max() if not ten_day_window_before_peak.empty else None
 
@@ -95,7 +102,6 @@ def find_post_peak_lows(etf_name: str, df: pd.DataFrame) -> pd.DataFrame:
             })
 
     return pd.DataFrame(monthly_lows)
-
 
 def main():
     if not os.path.exists(OUTPUT_DIR):

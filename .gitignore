@@ -1,32 +1,4 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+#.gitignore added 6/10/25 with guidance from Chat GPT, 9:18 am
+# Ignore Excel files in the data directory
 
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints
-
-# Virtual environments
-venv/
-env/
-ENV/
-.venv/
-
-# VSCode / IDE configs (optional)
-.vscode/
-.idea/
-
-# macOS / Windows system files
-.DS_Store
-Thumbs.db
-
-# Log files
-*.log
-
-# Local data files you don’t want to sync
-*.bak
-*.tmp
-
-# Ignore secret keys or environment configs (if used later)
-.env
-*.key
+/data/*.xlsx

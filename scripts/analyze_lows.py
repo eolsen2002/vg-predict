@@ -1,74 +1,51 @@
 # scripts/analyze_lows.py
-
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
+import os
 
-def check_low(etf: str):
+def check_low(etf: str, signal_csv: str = "signals/all_etfs_post_peak_lows.csv") -> str:
     today = pd.Timestamp(datetime.today().date())
-    filename = f"signals/{etf.lower()}_post_peak_lows.csv"
+
+    if not os.path.exists(signal_csv):
+        return f"❌ No combined low CSV found at {signal_csv}."
 
     try:
-        df = pd.read_csv(filename, parse_dates=[f"{etf}_Low_Date", f"{etf}_Peak_Date"])
-    except FileNotFoundError:
-        return f"❌ No low CSV found for {etf}."
+        df = pd.read_csv(signal_csv)
+    except Exception as e:
+        return f"⚠️ Error reading {signal_csv}: {e}"
 
-    latest = df.iloc[-1]
-    low_date = latest[f"{etf}_Low_Date"]
-    low_price = latest[f"{etf}_Low"]
-    peak_date = latest[f"{etf}_Peak_Date"]
-    peak_price = latest[f"{etf}_Peak"]
-    drop_pct = latest["Drop_%"]
+    # Filter rows for the requested ETF (case-insensitive)
+    df_etf = df[df["ETF"].str.upper() == etf.upper()]
 
-    print(f"📄 Latest {etf} low date in CSV: {low_date.date()}, value: ${low_price:.2f}")
+    if df_etf.empty:
+        return f"❌ No low data found for {etf.upper()}."
 
-    if low_date == today:
-        return (
-            f"📅 Today IS the {etf} LOW day!\n"
-            f"• Peak Date: {peak_date.date()} at ${peak_price:.2f}\n"
-            f"• Projected Low Date: {low_date.date()} at ${low_price:.2f}\n"
-            f"• Drop: {drop_pct:.3f}%\n"
-            f"• Today: {today.date()}\n"
-            f"🔔 {etf} LOW SIGNAL ACTIVE"
-        )
+    # Convert Low_Date to datetime
+    df_etf['Low_Date'] = pd.to_datetime(df_etf['Low_Date'])
+
+    # Get most recent low signal for this ETF
+    latest_row = df_etf.iloc[-1]
+    low_date = latest_row["Low_Date"]
+    low_price = latest_row["Low"]
+
+    output = f"📄 Latest {etf.upper()} low date in CSV: {low_date.date()}, value: ${low_price:.2f}\n"
+
+    if low_date.normalize() == today:
+        output += f"🔔 {etf.upper()} LOW SIGNAL ACTIVE\n• Low Date: {low_date.date()} at ${low_price:.2f}"
     else:
-        return f"📈 Today is NOT a {etf} low day."
+        output += f"📉 Today is NOT a {etf.upper()} low day."
 
-def check_etf_low_signal(etf_name: str) -> str:
-    """
-    Checks if today is the post-peak low date for a given ETF.
+    # Check for upcoming lows within the next 3 days
+    upcoming = df_etf[(df_etf['Low_Date'] > today) & (df_etf['Low_Date'] <= today + timedelta(days=3))]
+    if not upcoming.empty:
+        output += "\n\n⏳ Upcoming low dates within 3 days:\n"
+        for _, row in upcoming.iterrows():
+            output += f"• {row['Low_Date'].date()} at ${row['Low']:.2f}\n"
 
-    Parameters:
-        etf_name (str): ETF symbol, e.g., "USFR", "SGOV", etc.
+    return output.strip()
 
-    Returns:
-        str: Human-readable result.
-    """
-    today = pd.Timestamp.today().normalize()
-    file_path = f"signals/{etf_name.lower()}_post_peak_lows.csv"
-
-    try:
-        df = pd.read_csv(file_path, parse_dates=[f"{etf_name}_Peak_Date", f"{etf_name}_Low_Date"])
-    except FileNotFoundError:
-        return f"❌ No low CSV found for {etf_name}.\n"
-
-    if df.empty:
-        return f"⚠️ No data available for {etf_name}.\n"
-
-    latest_row = df.iloc[-1]
-    low_date = latest_row[f"{etf_name}_Low_Date"].date()
-    low_price = latest_row[f"{etf_name}_Low"]
-    peak_date = latest_row[f"{etf_name}_Peak_Date"].date()
-    peak_price = latest_row[f"{etf_name}_Peak"]
-
-    result = (
-        f"📄 Latest {etf_name} low date: {low_date}, value: ${low_price:.2f}\n"
-        f"📅 Peak Date: {peak_date} at ${peak_price:.2f}\n"
-        f"📉 Drop: {100 * (peak_price - low_price) / peak_price:.3f}%\n"
-    )
-
-    if today.date() == low_date:
-        result += f"🔔 {etf_name} LOW SIGNAL ACTIVE (Today = Low)\n"
-    else:
-        result += f"📉 Today is NOT a low signal day for {etf_name}.\n"
-
-    return result
+# Example usage:
+if __name__ == "__main__":
+    import sys
+    etf_name = sys.argv[1] if len(sys.argv) > 1 else "USFR"
+    print(check_low(etf_name))

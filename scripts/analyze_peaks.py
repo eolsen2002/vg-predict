@@ -3,66 +3,53 @@
 import pandas as pd
 from datetime import datetime
 import os
-
+import sys
 
 def check_peak(etf: str):
     today = pd.Timestamp(datetime.today().date())
-    filename = f"signals/{etf.lower()}_post_peak_highs.csv"
+    filename = "signals/all_etfs_peaks.csv"
     
+    if not os.path.exists(filename):
+        return f"❌ No combined peak CSV found at {filename}"
+
     try:
-        df = pd.read_csv(filename, parse_dates=[f"{etf}_Peak_Date"])
-    except FileNotFoundError:
-        return f"❌ No peak CSV found for {etf}."
-
-    latest = df.iloc[-1]
-    peak_date = latest[f"{etf}_Peak_Date"]
-    peak_price = latest[f"{etf}_Peak"]
-    
-    print(f"📄 Latest {etf} peak date in CSV: {peak_date.date()}, value: ${peak_price:.2f}")
-
-    if peak_date == today:
-        return (
-            f"📈 Today IS the {etf} PEAK day!\n"
-            f"• Peak Date: {peak_date.date()} at ${peak_price:.2f}\n"
-            f"• Today: {today.date()}\n"
-            f"🔔 {etf} PEAK SIGNAL ACTIVE"
-        )
-    else:
-        return f"📉 Today is NOT a {etf} peak day."
-
-
-def check_etf_peak_signal(etf: str, signal_dir: str = "signals", price_csv: str = "data/etf_prices_2023_2025.csv") -> str:
-    """
-    Checks if today matches the most recent post-low peak signal for the given ETF.
-    """
-    peak_csv_path = os.path.join(signal_dir, f"{etf.lower()}_post_peak_highs.csv")
-
-    if not os.path.exists(peak_csv_path):
-        return f"❌ No peak CSV found for {etf.upper()}."
-
-    # Load signal file
-    try:
-        df = pd.read_csv(peak_csv_path, parse_dates=[f"{etf.upper()}_Low_Date", f"{etf.upper()}_Peak_Date"])
+        df = pd.read_csv(filename)
     except Exception as e:
-        return f"⚠️ Error reading {peak_csv_path}: {e}"
+        return f"⚠️ Error reading {filename}: {e}"
 
-    if df.empty:
-        return f"⚠️ Peak CSV for {etf.upper()} is empty."
+    # Filter for this ETF only, use .copy() to avoid SettingWithCopyWarning
+    df_etf = df[df['ETF'].str.upper() == etf.upper()].copy()
+    if df_etf.empty:
+        return f"⚠️ No peak data found for {etf.upper()} in combined CSV."
 
-    # Get most recent peak signal
-    latest_row = df.iloc[-1]
-    peak_date = latest_row[f"{etf.upper()}_Peak_Date"]
-    peak_price = latest_row[f"{etf.upper()}_Peak"]
+    # Convert 'Peak_Date' column *after* filtering
+    try:
+        df_etf['Peak_Date'] = pd.to_datetime(df_etf['Peak_Date'])
+    except Exception as e:
+        return f"⚠️ Date conversion failed: {e}"
 
-    today = pd.Timestamp.today().normalize()
+    # Get latest peak row
+    latest = df_etf.iloc[-1]
+    peak_date = latest["Peak_Date"]
+    peak_price = latest["Peak"]
 
-    # Check if today matches the peak date
+    print(f"📄 Latest {etf.upper()} peak date in CSV: {peak_date.date()}, value: ${peak_price:.2f}")
+
     if peak_date.normalize() == today:
         return (
-            f"🔔 {etf.upper()} PEAK SIGNAL ACTIVE\n"
-            f"• Low Date: {latest_row[f'{etf.upper()}_Low_Date'].date()} at ${latest_row[f'{etf.upper()}_Low']:.2f}\n"
-            f"• Projected Peak Date: {peak_date.date()} at ${peak_price:.2f}\n"
-            f"• Rebound: {((peak_price - latest_row[f'{etf.upper()}_Low']) / latest_row[f'{etf.upper()}_Low']) * 100:.3f}%"
+            f"📈 Today IS the {etf.upper()} PEAK day!\n"
+            f"• Peak Date: {peak_date.date()} at ${peak_price:.2f}\n"
+            f"• Today: {today.date()}\n"
+            f"🔔 {etf.upper()} PEAK SIGNAL ACTIVE"
         )
     else:
-        return f"Today is NOT a {etf.upper()} peak day."
+        return f"📉 Today is NOT a {etf.upper()} peak day."
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python analyze_peaks.py ETF_SYMBOL")
+        sys.exit(1)
+    
+    etf = sys.argv[1]
+    result = check_peak(etf)
+    print(result)

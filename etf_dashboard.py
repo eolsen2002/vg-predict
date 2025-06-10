@@ -1,55 +1,140 @@
-"""Optional GUI to be developed"""
-# eft_dashboard.py
-import pandas as pd
-from datetime import timedelta
+# etf_dashboard.py
+import tkinter as tk
+from tkinter import messagebox
+import datetime
+import subprocess
+import threading
 
-# Load the USFR post-peak signals
-usfr_signals = pd.read_csv("signals/usfr_post_peak_lows.csv", parse_dates=["USFR_Peak_Date", "USFR_Low_Date"])
+from scripts.analyze_signals import check_etf_signal_with_countdown
 
-# Optional: print recent months to verify
-print(usfr_signals.tail())
+ETFS = ['USFR', 'SGOV', 'BIL', 'SHV', 'TFLO', 'ICSH']
+SIGNALS = ['Low', 'Peak', 'Both']
 
-# ✅ Check Today’s Date vs Signal (Re-entry Alert Logic)
-today = pd.Timestamp.today().normalize()  # Get today's date without time
+def run_analysis():
+    selected_etfs = [etf for etf in ETFS if etf_vars[etf].get()]
+    selected_signal = signal_type.get()
+    output_text.delete("1.0", tk.END)
 
-# Set re-entry detection window (±1 calendar day)
-reentry_window = 1
+    if not selected_etfs:
+        messagebox.showwarning("No ETF Selected", "Please select at least one ETF.")
+        return
 
-# Find any matching re-entry rows
-matching_row = usfr_signals[
-    (usfr_signals["USFR_Low_Date"] >= today - timedelta(days=reentry_window)) &
-    (usfr_signals["USFR_Low_Date"] <= today + timedelta(days=reentry_window))
-]
+    today = datetime.date.today()
+    output_text.insert(tk.END, f"📆 Today: {today}\n\n")
 
-# Output results
-if not matching_row.empty:
-    print("📈 USFR re-entry signal detected!")
-    print(matching_row.to_string(index=False))
-else:
-    print("🔍 No USFR re-entry signal today.")
+    low_days_list = []
+    peak_days_list = []
+    low_info_dict = {}
+    peak_info_dict = {}
 
-# ✅ Load latest USFR price
-price_df = pd.read_csv("data/etf_prices_2023_2025.csv", index_col=0, parse_dates=True)
-price_df.index = pd.to_datetime(price_df.index, utc=True).tz_convert(None)
+    # Collect days_until for lows and peaks separately
+    for etf in selected_etfs:
+        if selected_signal in ["Low", "Both"]:
+            low_info = check_etf_signal_with_countdown(etf, "Low")
+            low_info_dict[etf] = low_info
+            low_days_list.append(low_info['days_until'])
+        if selected_signal in ["Peak", "Both"]:
+            peak_info = check_etf_signal_with_countdown(etf, "Peak")
+            peak_info_dict[etf] = peak_info
+            peak_days_list.append(peak_info['days_until'])
 
-# Filter for USFR column only
-usfr_price_series = price_df["USFR"].dropna()
+    min_low_days = min(low_days_list) if low_days_list else None
+    min_peak_days = min(peak_days_list) if peak_days_list else None
 
-# Get most recent trading day and price
-latest_date = usfr_price_series.index.max()
-latest_price = usfr_price_series.loc[latest_date]
+    # Insert output with highlighting only on min days_until
+    for etf in selected_etfs:
+        if selected_signal in ["Low", "Both"]:
+            low_info = low_info_dict.get(etf)
+            if low_info:
+                output_text.insert(tk.END, f"🔍 Checking LOW signal for {etf}...\n")
+                output_text.insert(tk.END, low_info['text'] + "\n")
+                tag = f"{etf}_low"
+                output_text.insert(tk.END, f"Days until next low: {low_info['days_until']}\n\n", tag)
+                if low_info['days_until'] == min_low_days:
+                    output_text.tag_configure(tag, foreground="white", background="green", font=("TkDefaultFont", 10, "bold"))
+                else:
+                    output_text.tag_configure(tag, foreground="black", background="white", font=("TkDefaultFont", 10, "normal"))
 
-# 🧠 Get most recent signal low
-most_recent_low = usfr_signals["USFR_Low"].iloc[-1]
-most_recent_low_date = usfr_signals["USFR_Low_Date"].iloc[-1]
+        if selected_signal in ["Peak", "Both"]:
+            peak_info = peak_info_dict.get(etf)
+            if peak_info:
+                output_text.insert(tk.END, f"🔍 Checking PEAK signal for {etf}...\n")
+                output_text.insert(tk.END, peak_info['text'] + "\n")
+                tag = f"{etf}_peak"
+                output_text.insert(tk.END, f"Days until next peak: {peak_info['days_until']}\n\n", tag)
+                if peak_info['days_until'] == min_peak_days:
+                    output_text.tag_configure(tag, foreground="white", background="green", font=("TkDefaultFont", 10, "bold"))
+                else:
+                    output_text.tag_configure(tag, foreground="black", background="white", font=("TkDefaultFont", 10, "normal"))
 
-# 🔍 Compare if today’s price is near the most recent low (±$0.01)
-price_diff = abs(latest_price - most_recent_low)
+def refresh_data():
+    try:
+        subprocess.run(["python", "scripts/fetch_etf_data.py"], check=True)
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        last_updated_label.config(text=f"Last data refresh: {timestamp} (latest data available)")
+        messagebox.showinfo("Success", "ETF data refreshed successfully.")
+    except Exception as e:
+        last_updated_label.config(text=f"Last data refresh failed: {e}")
+        messagebox.showerror("Error", f"Failed to refresh data:\n{e}")
 
-print(f"\n📅 Latest USFR price ({latest_date.date()}): {latest_price:.3f}")
-print(f"📉 Most recent signal low ({most_recent_low_date.date()}): {most_recent_low:.3f}")
+def refresh_data_background():
+    threading.Thread(target=refresh_data, daemon=True).start()
 
-if price_diff <= 0.01:
-    print("⚠️  USFR price is within 1¢ of the most recent post-peak low — possible re-entry opportunity!")
-else:
-    print("✅ USFR not near recent low — no alert.")
+def auto_refresh_on_startup():
+    def _refresh_and_update_label():
+        try:
+            subprocess.run(["python", "scripts/fetch_etf_data.py"], check=True)
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            last_updated_label.config(text=f"Last data refresh: {timestamp} (latest data available)")
+        except Exception as e:
+            last_updated_label.config(text=f"Auto refresh failed: {e}")
+    threading.Thread(target=_refresh_and_update_label, daemon=True).start()
+
+# ========== GUI Setup ==========
+root = tk.Tk()
+root.title("ETF Signal Dashboard")
+root.geometry("800x600")
+
+# ETF checkboxes
+etf_frame = tk.LabelFrame(root, text="Select ETFs")
+etf_frame.pack(fill="x", padx=10, pady=5)
+
+etf_vars = {}
+for etf in ETFS:
+    var = tk.BooleanVar(value=True)
+    etf_vars[etf] = var
+    tk.Checkbutton(etf_frame, text=etf, variable=var).pack(side="left", padx=5)
+
+# Signal type radio buttons
+signal_frame = tk.LabelFrame(root, text="Signal Type")
+signal_frame.pack(fill="x", padx=10, pady=5)
+
+signal_type = tk.StringVar(value="Both")
+for sig in SIGNALS:
+    tk.Radiobutton(signal_frame, text=sig, variable=signal_type, value=sig).pack(side="left", padx=5)
+
+# Buttons
+button_frame = tk.Frame(root)
+button_frame.pack(fill="x", padx=10, pady=5)
+
+refresh_data_btn = tk.Button(button_frame, text="🔄 Refresh Data", command=refresh_data_background, bg="lightgreen")
+refresh_data_btn.pack(side="left", padx=5)
+
+refresh_signals_btn = tk.Button(button_frame, text="🔄 Refresh Signals", command=run_analysis, bg="lightblue")
+refresh_signals_btn.pack(side="left", padx=5)
+
+# Last updated label
+last_updated_label = tk.Label(root, text="Last data refresh: never")
+last_updated_label.pack(pady=5)
+
+# Output text area
+output_frame = tk.Frame(root)
+output_frame.pack(fill="both", expand=True, padx=10, pady=5)
+
+output_text = tk.Text(output_frame, wrap="word")
+output_text.pack(fill="both", expand=True)
+
+# Auto-refresh data once on startup, non-blocking
+root.after(100, auto_refresh_on_startup)
+
+root.mainloop()
