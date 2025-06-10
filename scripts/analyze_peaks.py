@@ -1,4 +1,32 @@
-# scripts/analyze_peaks.py
+"""
+scripts/analyze_peaks.py
+
+Purpose:
+--------
+Check if today matches the latest monthly peak date for a specified Treasury ETF.
+
+Functionality:
+--------------
+- Reads combined peak data from 'signals/all_etfs_peaks.csv'.
+- Filters data for the given ETF symbol (case-insensitive).
+- Compares the latest recorded peak date with today's date.
+- Returns or prints a message indicating whether today is the ETF's peak day.
+
+Inputs:
+--------
+- ETF symbol passed as a command-line argument (e.g., USFR, SGOV).
+
+Outputs:
+---------
+- Prints peak date and value for the ETF.
+- Indicates if today is the ETF's peak day.
+- Error messages if CSV is missing or data is invalid.
+
+Usage:
+--------
+Run from command line:
+    python analyze_peaks.py USFR
+"""
 
 import pandas as pd
 from datetime import datetime

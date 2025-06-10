@@ -25,7 +25,7 @@ for etf in etfs:
 # Combine into a single DataFrame
 df = pd.DataFrame(data)
 
-# Preprocess: remove timezone, set 'Date' column explicitly
+# Preprocess for saving: remove timezone, reset index, rename column
 df.index = df.index.tz_localize(None)
 df.reset_index(inplace=True)
 df.rename(columns={'index': 'Date'}, inplace=True)

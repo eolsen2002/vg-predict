@@ -1,11 +1,19 @@
-# analyze_signals.py
+# scripts/analyze_signals.py
 # ✅ Unified logic for checking low or peak signal for an ETF with countdown to next signal
 
 import pandas as pd
 import os
-from datetime import date, timedelta
-import numpy as np
+from datetime import timedelta
+import calendar
 
+def get_valid_peak_date(year: int, month: int, day: int) -> pd.Timestamp:
+    """
+    Given a year, month, and desired day,
+    returns a pd.Timestamp with the day adjusted to last day of month if day > last day.
+    """
+    last_day = calendar.monthrange(year, month)[1]
+    valid_day = min(day, last_day)
+    return pd.Timestamp(year=year, month=month, day=valid_day)
 
 def check_etf_signal_with_countdown(etf: str, signal_type: str, signal_dir="signals") -> dict:
     """
@@ -26,10 +34,9 @@ def check_etf_signal_with_countdown(etf: str, signal_type: str, signal_dir="sign
     if signal_type not in ["Low", "Peak"]:
         return {"text": f"❌ Invalid signal type '{signal_type}' for {etf}.", "days_until": -1}
 
-    # Build filename and columns
     filename = os.path.join(signal_dir, f"{etf.lower()}_post_peak_{'lows' if signal_type == 'Low' else 'highs'}.csv")
-    date_col = f"{etf}_{signal_type}_Date"
-    price_col = f"{etf}_{signal_type}"
+    date_col = "Peak_Date" if signal_type == "Peak" else f"{etf}_Low_Date"
+    price_col = "Peak" if signal_type == "Peak" else f"{etf}_Low"
 
     if not os.path.exists(filename):
         return {"text": f"❌ No {signal_type} signal CSV found for {etf}.", "days_until": -1}
@@ -42,13 +49,14 @@ def check_etf_signal_with_countdown(etf: str, signal_type: str, signal_dir="sign
     if df.empty:
         return {"text": f"⚠️ {signal_type} CSV for {etf} is empty.", "days_until": -1}
 
-    # Find the next signal date that is today or later
+    # Find next signal date >= today
     future_signals = df[df[date_col] >= today]
     if not future_signals.empty:
         next_signal = future_signals.iloc[0]
         signal_date = next_signal[date_col].normalize()
         signal_price = next_signal[price_col]
         days_until = (signal_date - today).days
+
         if signal_date == today:
             text = (
                 f"🔔 {etf} {signal_type.upper()} SIGNAL ACTIVE\n"
@@ -60,30 +68,28 @@ def check_etf_signal_with_countdown(etf: str, signal_type: str, signal_dir="sign
                 f"📉 {days_until} days until next {signal_type.lower()} signal."
             )
     else:
-        # No future signals; estimate next based on historical pattern
+        # No future signals - estimate next signal date using modal day
         df = df.sort_values(by=date_col)
         last_signal = df.iloc[-1]
         signal_price = last_signal[price_col]
 
-        # Use modal day of month from historical signals
         day_series = df[date_col].dt.day
         most_common_day = int(day_series.mode().iloc[0]) if not day_series.empty else 22
 
-        # Start from today and loop to find nearest valid date in this or next month
+        # Find next valid candidate date in this or next month
         month_offset = 0
+        candidate_date = None
         while month_offset < 2:
             check_date = today + pd.DateOffset(months=month_offset)
-            try:
-                candidate_date = pd.Timestamp(year=check_date.year, month=check_date.month, day=most_common_day)
-                if candidate_date >= today:
-                    break
-            except:
-                pass
+            candidate_date = get_valid_peak_date(check_date.year, check_date.month, most_common_day)
+            if candidate_date >= today:
+                break
             month_offset += 1
-        else:
+
+        if candidate_date is None or candidate_date < today:
             candidate_date = today + timedelta(days=10)
 
-        # Adjust for weekends: shift to next Monday if Sat/Sun
+        # Adjust weekends to next Monday
         if candidate_date.weekday() == 5:
             candidate_date += timedelta(days=2)
         elif candidate_date.weekday() == 6:

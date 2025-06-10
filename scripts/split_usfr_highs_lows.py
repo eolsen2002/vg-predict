@@ -1,5 +1,38 @@
 # scripts/split_usfr_highs_lows.py
 
+"""
+scripts/split_usfr_highs_lows.py
+
+Purpose:
+--------
+This script processes the combined USFR post-peak highs and lows data
+(from signals/usfr_post_peak_highs.csv) and extracts clean, chronological
+lists of valid low and high points as separate CSV files.
+
+Functionality:
+--------------
+- Reads the combined CSV containing USFR peak and low dates and prices.
+- Sorts data by the low dates chronologically.
+- Filters to only include valid low→high cycles, ensuring each high date
+  is strictly after the previous high to avoid overlaps.
+- Saves the filtered peaks and lows into two separate CSV files:
+  - signals/usfr_post_peak_highs_only.csv
+  - signals/usfr_post_peak_lows_only.csv
+
+This separation helps downstream analysis and signal detection by
+providing clean, ordered data for highs and lows individually.
+
+Output:
+--------
+- Two CSV files containing clean USFR peak and low data respectively.
+
+Usage:
+-------
+Run as a standalone script after generating or updating
+signals/usfr_post_peak_highs.csv to refresh the separate peak and low files.
+"""
+
+
 import pandas as pd
 import os
 
