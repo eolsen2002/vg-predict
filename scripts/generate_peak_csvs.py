@@ -35,10 +35,10 @@ import os
 import sys
 import pandas as pd
 
-# 🧠 Add project root to path so 'utils' can be imported from scripts/
+# Add project root to path so 'utils' can be imported from scripts/
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from utils.peak_detection import find_post_peak_peaks  # ✅ External function import
+from utils.peak_detection import find_post_peak_peaks  # External function import
 
 ETF_LIST = ['USFR', 'SGOV', 'BIL', 'TFLO', 'SHV', 'ICSH']
 INPUT_CSV = 'data/etf_prices_2023_2025.csv'
@@ -50,18 +50,24 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 def main():
     try:
         df = pd.read_csv(INPUT_CSV)
+        print(f"✅ Loaded input CSV: {INPUT_CSV} with {len(df)} rows")
     except Exception as e:
         print(f"❌ Failed to load input CSV: {e}")
         return
 
     for etf in ETF_LIST:
-        print(f"📈 Processing {etf}...")
-        result_df = find_post_peak_peaks(etf, df)
+        print(f"\n📈 Processing {etf}...")
+        try:
+            # Enable debug to see detailed logs for skipped months etc.
+            result_df = find_post_peak_peaks(etf, df, debug=True)
+        except Exception as e:
+            print(f"❌ Error processing {etf}: {e}")
+            continue
 
         if not result_df.empty:
             output_file = os.path.join(OUTPUT_DIR, f"{etf.lower()}_post_peak_highs.csv")
             result_df.to_csv(output_file, index=False)
-            print(f"✅ Saved: {output_file}")
+            print(f"✅ Saved: {output_file} ({len(result_df)} rows)")
         else:
             print(f"⚠️ No valid peak data found for {etf}")
 
