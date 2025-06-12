@@ -1,6 +1,5 @@
 ETF,Month,Low_Date,Low,Peak_Date,Peak,Rebound_%,Days_Between_Low_and_Peak,Multi_Peak_Days,Is_Multi_Day_Peak,10D_Low_Before_Peak,Was_Peak_in_Prior_Month
 SHV,2023-11,2023-11-15,110.31,2023-11-30,110.59,0.254,15,1,False,110.31,False
-SHV,2023-12,2023-12-14,109.86,2023-12-29,110.13,0.246,15,1,False,109.86,False
 SHV,2024-02,2024-02-14,110.29,2024-02-29,110.53,0.218,15,1,False,110.29,False
 SHV,2024-03,2024-03-14,110.3,2024-03-28,110.54,0.218,14,1,False,110.3,False
 SHV,2024-06,2024-06-13,110.23,2024-06-28,110.5,0.245,15,1,False,110.23,False
