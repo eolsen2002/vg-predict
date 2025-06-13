@@ -1,4 +1,7 @@
 # scripts/generate_peak_low_signals.py
+"""ADD DESCRIPTION
+ADD DATE AND TIME WHEN UPDATED"""
+
 import pandas as pd
 from datetime import datetime
 

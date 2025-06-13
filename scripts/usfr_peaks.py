@@ -1,6 +1,7 @@
 """
 scripts/usfr_peaks.py
-
+UPDATE THIS MORE IF USED AS BASIS OF NEW SCRIPT 
+ADD UPDATE DATE AND TIME WHEN UPDATED
 Purpose:
 Detect monthly peak prices for the USFR Treasury ETF within a defined date window each month.
 This helps identify the typical monthly peak period (usually days 18 to 25) when USFR price

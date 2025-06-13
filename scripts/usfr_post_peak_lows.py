@@ -1,9 +1,10 @@
 """
 scripts/usfr_post_peak_lows.py
-Description:
+Description: UPDATE THIS WITH NEW DETAILS IF USED FOR THE BASIS OF NEW CODE/SCRIPT
 Detects USFR's lowest price within post-peak days after its monthly peak 
 (typically days 18–25 from config) to identify ideal re-entry points.
 Outputs CSV with monthly peak/low dates and drop percentages.
+last update : FILL IN DATE, TIME HERE for future tracking
 """
 
 import sys
