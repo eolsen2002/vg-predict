@@ -1,4 +1,5 @@
 """
+peak_detection.py
 Peak Detection Utilities for Treasury ETFs
 
 This module defines logic for identifying post-peak highs of Treasury ETFs
