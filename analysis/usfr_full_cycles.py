@@ -1,27 +1,23 @@
 # scripts/usfr_full_cycles.py
 """
 Detects full low-to-peak cycles for USFR.
+
+Cycle definition:
 - Low typically occurs near the end of the month (e.g., 5/24/24)
-- Peak occurs mid-to-late in the following month (e.g., 6/24/24)
-- Enforces clean pattern: distinct low → recovery → peak, minimum 10-day gap
+- Peak typically occurs mid-to-late in the following month (e.g., 6/24/24)
+- Requires a clean pattern: distinct low → recovery → peak, with minimum 10-day separation
+- Adds confirmation logic:
+  - Peak must be higher than following 1–2 days to avoid false peaks
+  - Low must be a local minimum post-peak (lowest among next 2 days)
 
-✅ What this script does:
-Loads USFR data from your main price file.
+Output:
+- Saves full cycle data to signals/usfr_full_cycles.csv with gain %
 
-For each month pair:
-
-Looks for low in the last 10–13 trading days of Month 1.
-
-Looks for peak in the mid-to-late part of Month 2.
-
-Ensures a minimum 10-day gap between low and peak.
-
-Only records valid upward cycles with a positive % gain.
-
-Last updated: 2025-06-12, 8:59 pm
+Last updated: 2025-06-13
 """
 
 import pandas as pd
+from datetime import timedelta
 
 def load_usfr_data(csv_path="data/etf_prices_2023_2025.csv"):
     df = pd.read_csv(csv_path, index_col=0, parse_dates=True)
@@ -51,8 +47,19 @@ def detect_usfr_full_cycles(df):
         peak_price = mid_late_month2["USFR"].max()
         peak_day = mid_late_month2[mid_late_month2["USFR"] == peak_price].index.max()
 
+        # Require minimum 10-day gap
         if (peak_day - low_day).days < 10:
-            continue  # too close — likely noise
+            continue
+
+        # Confirm it's a valid peak: next 1–2 days must not be equal or higher
+        future_days = df[(df.index > peak_day) & (df.index <= peak_day + timedelta(days=2))]
+        if not future_days.empty and future_days["USFR"].max() >= peak_price:
+            continue
+
+        # Confirm it's a valid low: lowest point within next 2 days
+        post_low_window = df[(df.index >= low_day) & (df.index <= low_day + timedelta(days=2))]
+        if low_price != post_low_window["USFR"].min():
+            continue
 
         gain_pct = round((peak_price - low_price) / low_price * 100, 3)
 

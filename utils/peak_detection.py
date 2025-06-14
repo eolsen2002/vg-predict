@@ -1,4 +1,5 @@
 """
+utils/peak_detection.py
 Peak Detection Utilities for Treasury ETFs
 
 This module defines logic for identifying post-peak highs of Treasury ETFs
@@ -11,15 +12,14 @@ Key Rules:
   * Peak is defined as the highest price during this window.
 
 - Other ETFs (SGOV, BIL, SHV, TFLO, ICSH):
-  * Peak is defined as the highest price during the full calendar month.
-  * If multiple days tie for the highest price, the latest one is used.
+  * Peak is defined as the highest price in the full calendar month.
+  * However, lows in the last 10 days of the prior month are now considered to avoid missing valid rebound signals.
 
 - A minimum ETF-specific rebound (typically 0.07–0.1%) from a valid 10-day low before the peak is required.
 - If no valid 10-day pre-peak low exists, the month is skipped.
 - Monthly detection logic respects ETF-specific windowing and fallback behavior.
-- All months with at least one price data point are evaluated (no arbitrary row thresholds).
 - Data is sorted chronologically by date to ensure correct window handling.
-- Debug logging is available via `debug=True` argument.
+- Debug logging is available via `debug=True`.
 
 Functions:
 ----------
@@ -38,15 +38,14 @@ Output:
     'Rebound_%', 'Days_Between_Low_and_Peak', 'Multi_Peak_Days',
     'Is_Multi_Day_Peak', '10D_Low_Before_Peak', 'Was_Peak_in_Prior_Month'
 
-Changelog Summary – 6/12/25 Updates:
--------------------------------------
-✅ Removed arbitrary <10 trading day month filter (was skipping valid months)
-✅ Added chronological sorting to ensure accurate rolling window logic
-✅ Retained USFR-specific intra-month peak window (days 18–25)
-✅ Added `debug` flag for verbose internal logging during analysis
-✅ ETF-specific rebound thresholds to better reflect price scale & volatility
-✅ Rechecked alignment with generate_peak_csvs.py and GUI output modules
+Changelog – 2025-06-13:
+------------------------
+✅ Added prior-month 10-day lookback for all ETFs (not just USFR)
+✅ Corrected logic to detect valid rebounds even when low is in previous month
+✅ Retained strict day-18–25 filtering for USFR peak detection
+✅ Improved debug logging granularity
 """
+
 import pandas as pd
 
 # Minimum % rebound thresholds for each ETF
@@ -73,52 +72,60 @@ def find_post_peak_peaks(etf_name: str, df: pd.DataFrame, debug: bool = False) -
     for month_start in months:
         month_end = month_start + pd.offsets.MonthEnd(0)
 
-        if etf_name == 'USFR':
-            prior_window = etf_df[(etf_df.index < month_start) & (etf_df.index >= month_start - pd.Timedelta(days=15))]
-            this_month = etf_df[(etf_df.index >= month_start) & (etf_df.index <= month_end)]
-            group = pd.concat([prior_window, this_month]).sort_index()
+        # Include up to 10 trading days before this month to capture prior-month lows
+        prior_days = etf_df[(etf_df.index < month_start)].tail(10)
+        this_month = etf_df[(etf_df.index >= month_start) & (etf_df.index <= month_end)]
+        group = pd.concat([prior_days, this_month]).sort_index()
 
-            peak_window = group[
+        if group.empty:
+            if debug:
+                print(f"[SKIP] {etf_name} — No price data for {month_start.strftime('%Y-%m')}")
+            continue
+
+        # USFR-specific window: only days 18–25
+        if etf_name == 'USFR':
+            peak_candidates = group[
                 (group.index.day >= 18) &
                 (group.index.day <= 25) &
                 (group.index.month == month_start.month) &
                 (group.index.year == month_start.year)
             ]
         else:
-            group = etf_df[(etf_df.index >= month_start) & (etf_df.index <= month_end)]
-            peak_value = group[etf_name].max()
-            peak_dates = group[group[etf_name] == peak_value].index
-            peak_date = peak_dates[-1] if len(peak_dates) > 0 else None
-            peak_window = group[group.index == peak_date] if peak_date is not None else pd.DataFrame()
+            peak_candidates = this_month  # full month for others
 
-        if group.empty or peak_window.empty:
+        if peak_candidates.empty:
             if debug:
                 print(f"[SKIP] {etf_name} — No peak window data in {month_start.strftime('%Y-%m')}")
             continue
 
-        peak_value = peak_window[etf_name].max()
-        peak_date = peak_window[etf_name].idxmax()
+        peak_value = peak_candidates[etf_name].max()
+        peak_dates = peak_candidates[peak_candidates[etf_name] == peak_value].index
+        peak_date = peak_dates[-1] if len(peak_dates) > 0 else None
 
-        pre_peak_idx = etf_df.index[etf_df.index < peak_date]
-        if len(pre_peak_idx) == 0:
+        if not peak_date:
             if debug:
-                print(f"[SKIP] {etf_name} - No pre-peak data before {peak_date}")
+                print(f"[SKIP] {etf_name} — No valid peak found in {month_start.strftime('%Y-%m')}")
             continue
 
-        window_start = max(0, len(pre_peak_idx) - 10)
-        pre_peak_window = etf_df.loc[pre_peak_idx[window_start:]]
-
-        if len(pre_peak_window) < 5:
+        # Get last 10 trading days before the peak
+        pre_peak = etf_df[etf_df.index < peak_date]
+        if pre_peak.empty:
             if debug:
-                print(f"[SKIP] {etf_name} — Too few pre-peak days ({len(pre_peak_window)}) for {peak_date}")
+                print(f"[SKIP] {etf_name} — No data before peak {peak_date}")
             continue
 
-        low_value = pre_peak_window[etf_name].min()
-        low_date = pre_peak_window[etf_name].idxmin()
+        pre_10d = pre_peak.tail(10)
+        if len(pre_10d) < 5:
+            if debug:
+                print(f"[SKIP] {etf_name} — Too few pre-peak days ({len(pre_10d)}) before {peak_date}")
+            continue
+
+        low_value = pre_10d[etf_name].min()
+        low_date = pre_10d[etf_name].idxmin()
 
         if low_date >= peak_date:
             if debug:
-                print(f"[SKIP] {etf_name} — Low date {low_date} not before peak {peak_date}")
+                print(f"[SKIP] {etf_name} — Low date {low_date.date()} not before peak {peak_date.date()}")
             continue
 
         rebound_pct = (peak_value - low_value) / low_value
@@ -126,8 +133,10 @@ def find_post_peak_peaks(etf_name: str, df: pd.DataFrame, debug: bool = False) -
 
         if rebound_pct < reb_thresh:
             if debug:
-                print(f"[SKIP] {etf_name} — Rebound too small ({rebound_pct:.3%}) in {month_start.strftime('%Y-%m')} [thresh: {reb_thresh:.3%}]")
+                print(f"[SKIP] {etf_name} — Rebound too small ({rebound_pct:.3%}) [thresh: {reb_thresh:.3%}] in {month_start.strftime('%Y-%m')}")
             continue
+
+        multi_peak_count = group[etf_name].eq(peak_value).sum()
 
         monthly_peaks.append({
             'ETF': etf_name,
@@ -138,10 +147,10 @@ def find_post_peak_peaks(etf_name: str, df: pd.DataFrame, debug: bool = False) -
             'Peak': round(peak_value, 4),
             'Rebound_%': round(rebound_pct * 100, 3),
             'Days_Between_Low_and_Peak': (peak_date - low_date).days,
-            'Multi_Peak_Days': group[etf_name].eq(peak_value).sum(),
-            'Is_Multi_Day_Peak': group[etf_name].eq(peak_value).sum() > 1,
+            'Multi_Peak_Days': multi_peak_count,
+            'Is_Multi_Day_Peak': multi_peak_count > 1,
             '10D_Low_Before_Peak': round(low_value, 4),
-            'Was_Peak_in_Prior_Month': peak_date.month != low_date.month or peak_date.year != low_date.year
+            'Was_Peak_in_Prior_Month': low_date.month != peak_date.month
         })
 
     return pd.DataFrame(monthly_peaks) if monthly_peaks else pd.DataFrame(columns=[
