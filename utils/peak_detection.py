@@ -91,7 +91,8 @@ def find_post_peak_peaks(etf_name: str, df: pd.DataFrame, debug: bool = False) -
                 (group.index.year == month_start.year)
             ]
         else:
-            peak_candidates = this_month  # full month for others
+            peak_candidates = group  # include prior 10 days + full current month
+
 
         if peak_candidates.empty:
             if debug:
