@@ -11,6 +11,8 @@ Green highlight on earliest peak and low days among selected ETFs, as before'''
 
 # etf_dashboard.py, updated 6/15/25 with USFR post-peak low GUI integration
 # etf_dashboard.py, updated 6/15/25 with requested enhancements
+# added new helper function to silently run update_modal_days.py in the background, 
+#   with "update_modal_days_background()" added just before "root.after(100, auto_refresh_on_startup)", 6/16/25, 1:10 pm
 
 import tkinter as tk
 from tkinter import messagebox
@@ -45,6 +47,16 @@ def find_last_valid_peak_from_csv(etf):
     try:
         with open(csv_path, newline='') as csvfile:
             reader = list(csv.DictReader(csvfile))
+            
+            # --- Add fix here to rename column if needed ---
+            if reader:
+                # Convert to list of dicts, so we can rename keys in each row if needed
+                # Only rename in data, doesn't affect the file
+                first_row = reader[0]
+                if 'Cycle_Start_Month' in first_row and 'Cycle_Month' not in first_row:
+                    for row in reader:
+                        row['Cycle_Month'] = row.pop('Cycle_Start_Month')
+
             for row in reversed(reader):
                 try:
                     if float(row['Gain_%']) > 0:
@@ -61,6 +73,7 @@ def find_last_valid_peak_from_csv(etf):
     except FileNotFoundError:
         return None
     return None
+
 
 def format_date_dmy(dt):
     return dt.strftime('%a %m/%d/%y')
@@ -200,6 +213,14 @@ def refresh_data():
 def refresh_data_background():
     threading.Thread(target=refresh_data, daemon=True).start()
 
+def update_modal_days_background():
+    def _update():
+        try:
+            subprocess.run(["python", "scripts/update_modal_days.py"], check=True)
+        except Exception as e:
+            print(f"[Warning] Failed to update modal days: {e}")
+    threading.Thread(target=_update, daemon=True).start()
+
 def auto_refresh_on_startup():
     def _refresh_and_update_label():
         try:
@@ -247,5 +268,6 @@ left_text.pack(side="left", fill="both", expand=True)
 right_text = tk.Text(output_frame, wrap="word", width=40, bg="#f5f5f5")
 right_text.pack(side="right", fill="both", expand=False)
 
+update_modal_days_background()
 root.after(100, auto_refresh_on_startup)
 root.mainloop()
