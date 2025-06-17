@@ -10,7 +10,8 @@ Keep countdown days to next peak/low with highlights for soonest signals
 Green highlight on earliest peak and low days among selected ETFs, as before'''
 
 # etf_dashboard.py, updated 6/15/25 with USFR post-peak low GUI integration
-# etf_dashboard.py, updated 6/15/25 with requested enhancements
+# etf_dashboard.py, updated 6/15/25 with requested enhancements# etf_dashboard.py, 
+# updated 6/17/25 with USFR Full Cycles GUI integration
 
 import tkinter as tk
 from tkinter import messagebox
@@ -18,12 +19,12 @@ import subprocess
 import threading
 import csv
 from datetime import datetime, date
+from dateutil import parser
 from analysis.usfr_peak_signal import get_usfr_peak_signal
 from scripts.peak_signal_score import get_all_peak_scores
 from scripts.analyze_signals import check_etf_signal_with_countdown
 from scripts.usfr_post_peak_lows import run_usfr_post_peak_lows
 from analysis.usfr_full_cycles import run_usfr_full_cycles
-from dateutil import parser
 
 ETFS = ['USFR', 'SGOV', 'BIL', 'SHV', 'TFLO', 'ICSH']
 SIGNALS = ['Low', 'Peak', 'Both']
@@ -109,7 +110,6 @@ def run_analysis():
             peak_info = peak_info_dict.get(etf, {})
             lines = []
 
-            # Show only one peak line from CSV
             last_peak = find_last_valid_peak_from_csv(etf)
             if last_peak:
                 lines.append(f"📄 {etf} last peak: {last_peak['Peak_Date']} @ ${float(last_peak['Peak']):.2f}")
@@ -117,6 +117,8 @@ def run_analysis():
             if all(k in peak_info for k in ['modal_day', 'next_date', 'days_until']):
                 lines.append(f"🧠 Next est. peak (modal {peak_info['modal_day']}): {peak_info['next_date']}")
                 lines.append(f"     Days until peak: {peak_info['days_until']}")
+            else:
+                lines.append(f"📭 No peak data yet for {etf}")
 
             latest = get_latest_price(etf)
             if latest:
@@ -142,6 +144,8 @@ def run_analysis():
             if all(k in low_info for k in ['modal_day', 'next_date', 'days_until']):
                 lines.append(f"🧠 Next est. low (modal {low_info['modal_day']}): {low_info['next_date']}")
                 lines.append(f"     Days until low: {low_info['days_until']}")
+            else:
+                lines.append(f"📭 No low data yet for {etf}")
 
             latest = get_latest_price(etf)
             if latest:
@@ -172,7 +176,7 @@ def run_analysis():
 # ----- ✅ USFR Post-Peak Low -----
 def run_usfr_low_summary():
     try:
-        df = run_usfr_full_cycles()
+        df = run_usfr_post_peak_lows()
         if df.empty:
             messagebox.showinfo("No Data", "No valid USFR post-peak lows found.")
             return
@@ -187,6 +191,27 @@ def run_usfr_low_summary():
     except Exception as e:
         messagebox.showerror("Error", f"Failed to run USFR low analysis:\n{e}")
 
+# ----- ✅ USFR Full Cycles -----
+def run_usfr_full_cycles_gui():
+    try:
+        df = run_usfr_full_cycles()
+        if df.empty:
+            messagebox.showinfo("No Data", "No valid USFR full cycles found.")
+            return
+        row = df.iloc[-1]
+        msg = (
+            f"📈 USFR Full Cycle:\n"
+            f"Low Date: {row['Low_Date']} @ ${row['Low']:.2f}\n"
+            f"Peak Date: {row['Peak_Date']} @ ${row['Peak']:.2f}\n"
+            f"Gain: {row['Gain_%']}%\n"
+            f"Signal Strength: {row.get('Peak_Signal_Strength', 'N/A')}%\n"
+            f"Cycle Complete: {row['Cycle_Complete']}"
+        )
+        right_text.insert(tk.END, "\n" + msg + "\n")
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to run USFR full cycle analysis:\n{e}")
+
+# ----- Refresh Functions -----
 def refresh_data():
     try:
         subprocess.run(["python", "scripts/fetch_etf_data.py"], check=True)
@@ -234,6 +259,7 @@ button_frame.pack(fill="x", padx=10, pady=5)
 tk.Button(button_frame, text="🔄 Refresh Data", command=refresh_data_background, bg="lightgreen").pack(side="left", padx=5)
 tk.Button(button_frame, text="🔄 Refresh Signals", command=run_analysis, bg="lightblue").pack(side="left", padx=5)
 tk.Button(button_frame, text="🔎 USFR Post-Peak Lows", command=run_usfr_low_summary, bg="lightyellow").pack(side="left", padx=5)
+tk.Button(button_frame, text="📈 USFR Full Cycles", command=run_usfr_full_cycles_gui, bg="lavender").pack(side="left", padx=5)
 
 last_updated_label = tk.Label(root, text="Last data refresh: never")
 last_updated_label.pack(pady=5)
