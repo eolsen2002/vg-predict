@@ -108,6 +108,7 @@ Date,Score,Signal
 2025-06-13,45.0,⬇️ No Peak Signal
 2025-06-13,45.0,⬇️ No Peak Signal
 2025-06-13,45.0,⬇️ No Peak Signal
+<<<<<<< HEAD
 2025-06-13,45.0,⬇️ No Peak Signal
 2025-06-13,45.0,⬇️ No Peak Signal
 2025-06-16,60.0,⚠️ Watch Closely
@@ -142,3 +143,5 @@ Date,Score,Signal
 2025-06-17,60.0,⚠️ Watch Closely
 2025-06-17,60.0,⚠️ Watch Closely
 2025-06-17,60.0,⚠️ Watch Closely
+=======
+>>>>>>> 986e9e6eabc82f8a0d2ca1ccb8e6e3b809262ab1

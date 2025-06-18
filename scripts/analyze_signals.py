@@ -1,4 +1,5 @@
 """
+scripts/analyze_signal.py
 Updated 6/18/25 ✅ Key Additions:
 💬 Clear docstring at top of function
 📅 Robust handling of modal days and fallback
@@ -18,6 +19,9 @@ import platform
 import csv
 from datetime import datetime, timedelta, date
 from dateutil import parser
+from utils.usfr_distribution import get_usfr_distribution_dates
+from utils.usfr_peak_confidence import check_against_ex_date
+
 
 def get_us_market_holidays(year):
     """
@@ -209,6 +213,13 @@ def check_etf_signal_with_countdown(etf, signal_type):
                         peak_candidate_date = today
 
                     peak_date = peak_candidate_date
+
+                    # ⬇️ NEW: Run PDF ex-date validator to assign a confidence score
+                    from utils.usfr_distribution import get_usfr_distribution_dates
+                    from utils.usfr_peak_confidence_score import check_against_ex_date
+
+                    distribution_dates = get_usfr_distribution_dates()
+                    confidence_score = check_against_ex_date(peak_date, distribution_dates)
 
             # --- Assign modal_date according to ETF and signal_type ---
             if etf.upper() != "USFR" and signal_type == "peak" and modal_day == 31:
