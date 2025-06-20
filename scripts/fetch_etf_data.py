@@ -1,5 +1,5 @@
 """
-fetch_etf_data.py – updated 6/10/25, 8:56 AM
+fetch_etf_data.py – updated 6/20/25
 Script to fetch ETF daily price and volume data from Yahoo Finance.
 Saves output to CSV for use in swing signal scripts and dashboard.
 """
@@ -25,8 +25,13 @@ for etf in etfs:
 # Combine into a single DataFrame
 df = pd.DataFrame(data)
 
-# Preprocess for saving: remove timezone, reset index, rename column
-df.index = df.index.tz_localize(None)
+# Preprocess for saving: remove timezone if present, reset index, rename column
+if not isinstance(df.index, pd.DatetimeIndex):
+    df.index = pd.to_datetime(df.index, errors='coerce')
+
+if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:
+    df.index = df.index.tz_localize(None)
+
 df.reset_index(inplace=True)
 df.rename(columns={'index': 'Date'}, inplace=True)
 

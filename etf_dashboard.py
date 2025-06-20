@@ -10,15 +10,15 @@ Keep countdown days to next peak/low with highlights for soonest signals
 Green highlight on earliest peak and low days among selected ETFs, as before'''
 
 # etf_dashboard.py, updated 6/15/25 with USFR post-peak low GUI integration
-<<<<<<< HEAD
 # etf_dashboard.py, updated 6/15/25 with requested enhancements
 # added new helper function to silently run update_modal_days.py in the background, 
 #   with "update_modal_days_background()" added just before "root.after(100, auto_refresh_on_startup)", 6/16/25, 1:10 pm
-=======
-# etf_dashboard.py, updated 6/15/25 with requested enhancements# etf_dashboard.py, 
-# updated 6/17/25 with USFR Full Cycles GUI integration
+"""
+etf_dashboard.py, updated 6/15/25 with USFR post-peak low GUI integration
+etf_dashboard.py, updated 6/15/25 with requested enhancements
+"""
+# etf_dashboard.py, updated full script with green highlight ONLY on days until peak/low line
 
->>>>>>> 986e9e6eabc82f8a0d2ca1ccb8e6e3b809262ab1
 import tkinter as tk
 from tkinter import messagebox
 import subprocess
@@ -31,31 +31,9 @@ from scripts.peak_signal_score import get_all_peak_scores
 from scripts.analyze_signals import check_etf_signal_with_countdown
 from scripts.usfr_post_peak_lows import run_usfr_post_peak_lows
 from analysis.usfr_full_cycles import run_usfr_full_cycles
-<<<<<<< HEAD
-from dateutil import parser
-import pandas as pd
 
-
-# Step 4 Debug — Preview USFR modal day data
-try:
-    df_usfr = pd.read_csv("signals/usfr_full_cycles.csv")
-    print("✅ Step 4 Debug — USFR CSV HEAD:\n", df_usfr.head())
-except Exception as e:
-    print("❌ Error reading USFR CSV:", e)
-
-=======
->>>>>>> 986e9e6eabc82f8a0d2ca1ccb8e6e3b809262ab1
-
-SIGNALS = ['Low', 'Peak', 'Both']
-# Make sure ETFS is defined
 ETFS = ['USFR', 'SGOV', 'BIL', 'SHV', 'TFLO', 'ICSH']
-
-for etf in ETFS:
-    low_info = check_etf_signal_with_countdown(etf, "low")
-    peak_info = check_etf_signal_with_countdown(etf, "peak")
-    # Now display low_info["text"] and peak_info["text"] in your GUI labels
-    print(low_info["text"])
-    print(peak_info["text"])
+SIGNALS = ["Low", "Peak", "Both"]
 
 def get_latest_price(etf):
     try:
@@ -74,14 +52,11 @@ def find_last_valid_peak_from_csv(etf):
     try:
         with open(csv_path, newline='') as csvfile:
             reader = list(csv.DictReader(csvfile))
-            
-            # --- Fix for column rename if needed ---
             if reader:
                 first_row = reader[0]
                 if 'Cycle_Start_Month' in first_row and 'Cycle_Month' not in first_row:
                     for row in reader:
                         row['Cycle_Month'] = row.pop('Cycle_Start_Month')
-
             for row in reversed(reader):
                 try:
                     if float(row['Gain_%']) > 0:
@@ -102,18 +77,6 @@ def find_last_valid_peak_from_csv(etf):
 def format_date_dmy(dt):
     return dt.strftime('%a %m/%d/%y')
 
-def convert_dates_in_text(text):
-    import re
-    def repl(match):
-        y, m, d = match.groups()
-        return f"{int(m)}/{int(d)}/{str(y)[2:]}"
-    return re.sub(r'(\d{4})-(\d{2})-(\d{2})', repl, text)
-
-"""
-this is exactly the function we needed: run_analysis() is where 
-the dashboard collects and formats everything including modal_day, days_until, and next_date.
-"""
-
 def run_analysis():
     selected_etfs = [etf for etf in ETFS if etf_vars[etf].get()]
     selected_signal = signal_type.get()
@@ -131,6 +94,7 @@ def run_analysis():
     low_days_list, peak_days_list = [], []
     low_info_dict, peak_info_dict = {}, {}
 
+    # Collect days_until for min calculation
     for etf in selected_etfs:
         if selected_signal in ["Peak", "Both"]:
             peak_info = check_etf_signal_with_countdown(etf, "Peak")
@@ -147,96 +111,68 @@ def run_analysis():
 
     for etf in selected_etfs:
         lines = []
+        # ETF header line
+        lines.append(f"=== {etf} ===")
 
-        # Add a clear ETF header line here:
-        lines.append(f"=== {etf} ===")  # Label ETF clearly
-
-        # ----- PEAK BLOCK -----
+        # Last peak from CSV
         last_peak = find_last_valid_peak_from_csv(etf)
         if last_peak:
             lines.append(f"📄 last peak: {last_peak['Peak_Date']} @ ${float(last_peak['Peak']):.2f}")
 
-        # Latest close price shown once per ETF here
+        # Latest price
         latest = get_latest_price(etf)
         if latest:
             lines.append(f"📊 Latest close: {latest['date']} @ ${latest['price']:.2f}")
 
-        if selected_signal in ["Peak", "Both"]:
-            peak_info = peak_info_dict.get(etf, {})
-<<<<<<< HEAD
-            print(f"DEBUG Peak info for {etf}: {peak_info}")  # DEBUG print peak_info
-            # Defensive check: all keys present and values not None
-            if all(k in peak_info and peak_info[k] is not None for k in ['modal_day', 'next_date', 'days_until']):
-                lines.append(f"🧠 Next est. peak (modal {peak_info['modal_day']}): {peak_info['next_date']}")
-                lines.append(f"     Days until peak: {peak_info['days_until']}")
-            else:
-                lines.append("🧠 Next est. peak: No data")
-=======
-            lines = []
+        # Peak info lines
+        peak_info = peak_info_dict.get(etf, {})
+        low_info = low_info_dict.get(etf, {})
 
-            last_peak = find_last_valid_peak_from_csv(etf)
-            if last_peak:
-                lines.append(f"📄 {etf} last peak: {last_peak['Peak_Date']} @ ${float(last_peak['Peak']):.2f}")
-
-            if all(k in peak_info for k in ['modal_day', 'next_date', 'days_until']):
-                lines.append(f"🧠 Next est. peak (modal {peak_info['modal_day']}): {peak_info['next_date']}")
-                lines.append(f"     Days until peak: {peak_info['days_until']}")
-            else:
-                lines.append(f"📭 No peak data yet for {etf}")
-
-            latest = get_latest_price(etf)
-            if latest:
-                lines.append(f"📊 Close on {latest['date']}: ${latest['price']:.2f}")
-
-            start_idx = left_text.index(tk.END)
-            left_text.insert(tk.END, "\n".join(lines) + "\n\n")
-            end_idx = left_text.index(tk.END)
-
-            if peak_info.get('days_until') == min_peak_days:
-                tag = f"{etf}_peak"
-                left_text.tag_add(tag, start_idx, end_idx)
-                left_text.tag_configure(tag, background="green", foreground="white", font=("TkDefaultFont", 10, "bold"))
->>>>>>> 986e9e6eabc82f8a0d2ca1ccb8e6e3b809262ab1
-
-        # ----- LOW BLOCK -----
-        if selected_signal in ["Low", "Both"]:
-            low_info = low_info_dict.get(etf, {})
-            print(f"DEBUG Low info for {etf}: {low_info}")  # DEBUG print low_info
-            if all(k in low_info and low_info[k] is not None for k in ['modal_day', 'next_date', 'days_until']):
-                lines.append(f"🧠 Next est. low (modal {low_info['modal_day']}): {low_info['next_date']}")
-                lines.append(f"     Days until low: {low_info['days_until']}")
-            else:
-<<<<<<< HEAD
-                lines.append("🧠 Next est. low: No data")
-=======
-                lines.append(f"📭 No low data yet for {etf}")
->>>>>>> 986e9e6eabc82f8a0d2ca1ccb8e6e3b809262ab1
-
-        # Insert all lines for this ETF at once, capture indexes for highlighting
+        # Insert header, peak, price info first
         start_idx = left_text.index(tk.END)
-        left_text.insert(tk.END, "\n".join(lines) + "\n\n")
+        left_text.insert(tk.END, "\n".join(lines) + "\n")
         end_idx = left_text.index(tk.END)
+        # Header bold
+        left_text.tag_add(f"{etf}_header", f"{start_idx} linestart", f"{start_idx} lineend")
+        left_text.tag_configure(f"{etf}_header", font=("TkDefaultFont", 11, "bold"))
 
-        # Highlight ETF header line to be bold
-        # The ETF header is the first line, so highlight just that line
-        header_tag = f"{etf}_header"
-        left_text.tag_add(header_tag, f"{start_idx} linestart", f"{start_idx} lineend")
-        left_text.tag_configure(header_tag, font=("TkDefaultFont", 11, "bold"))
+        # Peak lines and possible highlight
+        if selected_signal in ["Peak", "Both"] and all(k in peak_info for k in ['modal_day', 'next_date', 'days_until']):
+            peak_line_1 = f"🧠 Next est. peak (modal {peak_info['modal_day']}): {peak_info['next_date']}"
+            peak_line_2 = f"     Days until peak: {peak_info['days_until']}"
 
-        # Highlight relevant lines, green background for soonest peak or low
-        peak_days = peak_info_dict.get(etf, {}).get('days_until')
-        low_days = low_info_dict.get(etf, {}).get('days_until')
+            start_peak_idx = left_text.index(tk.END)
+            left_text.insert(tk.END, peak_line_1 + "\n")
+            end_peak_idx = left_text.index(tk.END)
+            left_text.insert(tk.END, peak_line_2 + "\n")
+            end_peak_days_idx = left_text.index(tk.END)
 
-        if selected_signal in ["Peak", "Both"] and peak_days == min_peak_days:
-            tag_name = f"{etf}_peak"
-            left_text.tag_add(tag_name, start_idx, end_idx)
-            left_text.tag_configure(tag_name, background="green", foreground="white", font=("TkDefaultFont", 10, "bold"))
+            # Highlight only Days until peak if earliest
+            if peak_info['days_until'] == min_peak_days:
+                # Adjust end index to exclude the newline character at the end of the line
+                end_peak_days_adj = left_text.index(f"{end_peak_days_idx} -1c")
+                left_text.tag_add(f"{etf}_peak", start_peak_idx, end_peak_days_adj)
+                left_text.tag_configure(f"{etf}_peak", background="green", foreground="white", font=("TkDefaultFont", 10, "bold"))
 
-        elif selected_signal in ["Low", "Both"] and low_days == min_low_days:
-            tag_name = f"{etf}_low"
-            left_text.tag_add(tag_name, start_idx, end_idx)
-            left_text.tag_configure(tag_name, background="green", foreground="white", font=("TkDefaultFont", 10, "bold"))
+        # Low lines and possible highlight
+        if selected_signal in ["Low", "Both"] and all(k in low_info and low_info[k] is not None for k in ['modal_day', 'next_date', 'days_until']):
+            low_line_1 = f"🧠 Next est. low (modal {low_info['modal_day']}): {low_info['next_date']}"
+            low_line_2 = f"     Days until low: {low_info['days_until']}"
 
+            start_low_idx = left_text.index(tk.END)
+            left_text.insert(tk.END, low_line_1 + "\n")
+            end_low_idx = left_text.index(tk.END)
+            left_text.insert(tk.END, low_line_2 + "\n")
+            end_low_days_idx = left_text.index(tk.END)
+
+            # Highlight only Days until low if earliest
+            if low_info['days_until'] == min_low_days:
+                end_low_days_adj = left_text.index(f"{end_low_days_idx} -1c")
+                left_text.tag_add(f"{etf}_low", start_low_idx, end_low_days_adj)
+                left_text.tag_configure(f"{etf}_low", background="green", foreground="white", font=("TkDefaultFont", 10, "bold"))
+
+        # Add blank line between ETFs for readability
+        left_text.insert(tk.END, "\n")
 
     # ----- RIGHT SIDE: Peak Scores -----
     right_text.insert(tk.END, "📈 Live ETF Peak Signal Scores:\n\n")
@@ -251,7 +187,6 @@ def run_analysis():
         if data:
             right_text.insert(tk.END, f"{etf} — Score: {data['score']} | {data['message']} | {data['price']}\n\n")
 
-# ----- ✅ USFR Post-Peak Low -----
 def run_usfr_low_summary():
     try:
         df = run_usfr_post_peak_lows()
@@ -269,7 +204,6 @@ def run_usfr_low_summary():
     except Exception as e:
         messagebox.showerror("Error", f"Failed to run USFR low analysis:\n{e}")
 
-# ----- ✅ USFR Full Cycles -----
 def run_usfr_full_cycles_gui():
     try:
         df = run_usfr_full_cycles()
@@ -289,7 +223,6 @@ def run_usfr_full_cycles_gui():
     except Exception as e:
         messagebox.showerror("Error", f"Failed to run USFR full cycle analysis:\n{e}")
 
-# ----- Refresh Functions -----
 def refresh_data():
     try:
         subprocess.run(["python", "scripts/fetch_etf_data.py"], check=True)
@@ -366,12 +299,4 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
-    # Debug print for console
-    for etf in ETFS:
-        low_info = check_etf_signal_with_countdown(etf, "Low")
-        peak_info = check_etf_signal_with_countdown(etf, "Peak")
-        print(low_info["text"])
-        print(peak_info["text"])
-        print("-" * 40)
-
-main()
+    main()

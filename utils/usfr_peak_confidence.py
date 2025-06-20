@@ -1,4 +1,4 @@
-# utils/usfr_peak_confidence_score.py
+# utils/usfr_peak_confidence.py
 def check_against_ex_date(modal_peak_date, distribution_dates):
     """
     Compares the modal peak date (from price history) against ex-dates from PDF.

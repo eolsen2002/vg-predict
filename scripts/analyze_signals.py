@@ -216,7 +216,7 @@ def check_etf_signal_with_countdown(etf, signal_type):
 
                     # ⬇️ NEW: Run PDF ex-date validator to assign a confidence score
                     from utils.usfr_distribution import get_usfr_distribution_dates
-                    from utils.usfr_peak_confidence_score import check_against_ex_date
+                    from utils.usfr_peak_confidence import check_against_ex_date
 
                     distribution_dates = get_usfr_distribution_dates()
                     confidence_score = check_against_ex_date(peak_date, distribution_dates)
